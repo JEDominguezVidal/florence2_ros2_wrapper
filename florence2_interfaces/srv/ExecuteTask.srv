@@ -1,0 +1,9 @@
+# Request
+sensor_msgs/Image image          # Optional. If empty, uses the most recent image from the topic.
+string task                      # The task prompt (e.g., '<OD>', '<CAPTION>', '<OCR>')
+string text_input                # Additional text (required for tasks like '<REGION_TO_CATEGORY>')
+---
+# Response
+string task_prompt               # The task that was executed
+string text_output               # Model generated text/caption
+string parsed_json               # The structured output (bboxes, labels, polygons) encoded as JSON
