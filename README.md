@@ -82,6 +82,26 @@ You can call the service `~/execute_task` when `continuous_task` is disabled or 
 ros2 service call /florence2_node/execute_task florence2_interfaces/srv/ExecuteTask "{task: '<OD>'}"
 ```
 
+### Example: On-Demand Service Call Node
+We have included an example node (`florence2_service_call_example.py`) that demonstrates how to interact with the Florence-2 node via Services programmatically.
+
+This example node subscribes to an image topic, waits until it receives a specific number of frames (e.g., 10 frames), and then triggers the `<OD>` (Object Detection) service to analyze the last received image. Once the model responds, the node logs the result and gracefully shuts down.
+
+**To run the example:**
+1. In terminal 1, launch the main Florence-2 node in Service mode (without the `continuous_task` parameter):
+```bash
+source ~/virtual-environments/florence2/bin/activate
+source ~/ros2_ws/install/setup.bash
+ros2 launch florence2_ros2 florence2_launch.py image_topic:=/camera/image_raw
+```
+2. In terminal 2, launch the example node:
+```bash
+source ~/virtual-environments/florence2/bin/activate
+source ~/ros2_ws/install/setup.bash
+ros2 launch florence2_ros2 example_launch.py image_topic:=/camera/image_raw
+```
+3. Play a rosbag or publish images to `/camera/image_raw`. Once the 10th frame is received, the example node will trigger the service call natively and exit.
+
 ### Subscribed Topics
 - `/camera/image_raw` (`sensor_msgs/Image`): The input image stream.
 
