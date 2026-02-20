@@ -1,0 +1,26 @@
+# ROS2 / Colcon build artifacts
+build/
+install/
+log/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env/
+.venv/
+virtual-environments/
+
+# Git
+.git
+.gitignore
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store

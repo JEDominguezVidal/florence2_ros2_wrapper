@@ -1,0 +1,41 @@
+services:
+  florence2_node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: florence2_ros2_wrapper:latest
+    container_name: florence2_ros2_container
+    network_mode: "host"
+    ipc: host
+    pid: host
+    privileged: true
+    # Use your host's NVIDIA GPU within the container
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu, compute, video, utility ]
+    volumes:
+      # Mount huggingface cache so models don't redownload every time
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      # Mount the /dev tree for standard devices (e.g. video0 if a webcam is used)
+      - /dev:/dev
+      # Mount FastDDS custom profile to disable shared memory for proper cross-docker discovery
+      - ./docker/fastdds_no_shm.xml:/fastdds_no_shm.xml
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      # ROS2 Jazzy networking requires these variables to match the host for proper discovery
+      - ROS_AUTOMATIC_DISCOVERY_RANGE=${ROS_AUTOMATIC_DISCOVERY_RANGE:-SUBNET}
+      - ROS_LOCALHOST_ONLY=${ROS_LOCALHOST_ONLY:-0}
+      # FastDDS Shared Memory breaks across Docker boundaries even with IPC host. Force UDP via RMW configuration or FastDDS profiles if needed.
+      # The safest approach across Docker is to explicitly configure FastDDS to not use SHM if problems persist, but usually defining ROS_DOMAIN_ID is enough.
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/fastdds_no_shm.xml
+    # Provide the default command to launch the ros2 node
+    # Replace the command below to launch specific options, e.g. service mode
+    # command: ros2 launch florence2_ros2 florence2_launch.py continuous_task:="<OD>" image_topic:=/camera/image_raw
+    command: ros2 launch florence2_ros2 florence2_launch.py
