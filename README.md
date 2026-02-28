@@ -1,6 +1,6 @@
 # Florence-2 ROS2 Wrapper
 
-A robust ROS2 Jazzy wrapper for the Florence-2 baseline and large foundational models using Python 3.12. This project is designed to run either autonomously via a dedicated Docker container or locally using a Python virtual environment.
+A robust ROS2 Jazzy wrapper for the Florence-2 baseline and large foundational models using Python 3.12. This project is designed to run either via a dedicated Docker container or locally using a Python virtual environment.
 
 ## Tested On
 - **OS**: Ubuntu 24.04
@@ -104,19 +104,32 @@ Florence-2 supports a variety of Vision-Language tasks. Here are the primary mod
 - `"<REGION_PROPOSAL>"`: **Region Proposal.** Finds potential object regions and bounding boxes without explicitly labelling them.
 - `"<OCR>"`: **Optical Character Recognition.** Extracts text found in the image.
 - `"<OCR_WITH_REGION>"`: **OCR with Regions.** Extracts text and provides the exact bounding boxes where the text is located.
+- `"<OPEN_VOCABULARY_DETECTION>"`: **Open Vocabulary Detection.** Detects explicitly requested objects. You must provide the target classes as comma-separated text via the `text_input` field of the service call.
+  ```bash
+  ros2 service call /florence2_node/execute_task florence2_interfaces/srv/ExecuteTask "{task: '<OPEN_VOCABULARY_DETECTION>', text_input: 'green chair, laptop'}"
+  ```
 
 > **Note on formatting:** When passing these parameter values in bash, always wrap them in quotes (e.g., `continuous_task:="<OD>"`), otherwise your terminal might interpret the `<` and `>` characters as input/output redirection operators.
 
 ### On-Demand Inference (Service)
-You can call the service `~/execute_task` when `continuous_task` is disabled or empty.
+You can call the synchronous service `~/execute_task` when `continuous_task` is disabled or empty. This will block until the model finishes processing.
 ```bash
 ros2 service call /florence2_node/execute_task florence2_interfaces/srv/ExecuteTask "{task: '<OD>'}"
 ```
 
-### Example: On-Demand Service Call Node
-We have included an example node (`florence2_service_call_example.py`) that demonstrates how to interact with the Florence-2 node via Services programmatically.
+### Asynchronous Inference (Action)
+For complex tasks (like `<MORE_DETAILED_CAPTION>`) or when the robot context changes mid-flight, you can use the asynchronous Action Server at `~/execute_task_action`. This approach prevents blocking your client and allows you to cancel the inference if needed. It also provides live feedback strings.
 
-This example node subscribes to an image topic, waits until it receives a specific number of frames (e.g., 10 frames), and then triggers the `<OD>` (Object Detection) service to analyse the last received image. Once the model responds, the node logs the result and gracefully shuts down.
+**To trigger via CLI:**
+```bash
+ros2 action send_goal /florence2_node/execute_task_action florence2_interfaces/action/ExecuteTask "{task: '<OD>'}"
+```
+
+### Example: Client Nodes
+We have included two example nodes that demonstrate how to interact with the Florence-2 node programmatically.
+
+#### Synchronous Service Example (`florence2_service_call_example.py`)
+This node subscribes to an image topic, waits until it receives a specific number of frames, and then triggers the `<OD>` service to analyse the last received image, blocking until it finishes.
 
 **To run the example:**
 1. In terminal 1, launch the main Florence-2 node (either via Docker or locally in Service mode without the `continuous_task` parameter).
@@ -127,6 +140,16 @@ source ~/ros2_ws/install/setup.bash
 ros2 launch florence2_ros2 example_launch.py image_topic:=/camera/image_raw
 ```
 3. Play a rosbag or publish images to `/camera/image_raw`. Once the 10th frame is received, the example node will trigger the service call natively and exit.
+
+#### Asynchronous Action Example (`florence2_action_example.py`)
+This node demonstrates the exact same workflow but utilizing the Action Server. It sends the request asynchronously (`send_goal_async`), processes continuous feedback from the node without blocking, and gracefully shuts down once the final result is returned. 
+
+**To run the action example:**
+1. In terminal 1, launch the main Florence-2 node (either via Docker or locally in Service mode without the `continuous_task` parameter).
+2. In terminal 2, launch the action example node:
+```bash
+ros2 run florence2_ros2 florence2_action_example --ros-args -p image_topic:=/camera/image_raw
+```
 
 ### Subscribed Topics
 - `/camera/image_raw` (`sensor_msgs/Image`): The input image stream.
