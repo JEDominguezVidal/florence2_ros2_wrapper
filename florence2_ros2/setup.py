@@ -29,6 +29,7 @@ setup(
         'console_scripts': [
             'florence2_node = florence2_ros2.florence2_node:main',
             'florence2_service_call_example = florence2_ros2.florence2_service_call_example:main',
+            'florence2_action_example = florence2_ros2.florence2_action_example:main',
         ],
     },
 )

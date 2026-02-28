@@ -11,17 +11,23 @@ from transformers import AutoProcessor, AutoModelForCausalLM
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import threading
+import time
 
+from rclpy.action import ActionServer, CancelResponse, GoalResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
 from florence2_interfaces.srv import ExecuteTask
+from florence2_interfaces.action import ExecuteTask as ExecuteTaskAction
 
 class Florence2Node(Node):
     def __init__(self):
         super().__init__('florence2_node')
         
-        # Declare parameters
         self.declare_parameter('model_name', 'microsoft/Florence-2-large-ft')
         self.declare_parameter('continuous_task', '')
         self.declare_parameter('image_topic', '/camera/image_raw')
+        
+        self.callback_group = ReentrantCallbackGroup()
         
         model_name = self.get_parameter('model_name').value
         self.continuous_task = self.get_parameter('continuous_task').value
@@ -67,7 +73,18 @@ class Florence2Node(Node):
         self.execute_task_srv = self.create_service(
             ExecuteTask,
             '~/execute_task',
-            self.execute_task_callback
+            self.execute_task_callback,
+            callback_group=self.callback_group
+        )
+        
+        # Actions
+        self.execute_task_action = ActionServer(
+            self,
+            ExecuteTaskAction,
+            '~/execute_task_action',
+            execute_callback=self.action_execute_callback,
+            cancel_callback=self.action_cancel_callback,
+            callback_group=self.callback_group
         )
         
         self.get_logger().info("Florence-2 node is ready.")
@@ -99,8 +116,49 @@ class Florence2Node(Node):
         response.parsed_json = json.dumps(parsed_answer)
         
         return response
+
+    # --- ACTION CALLBACKS ---
+    def action_cancel_callback(self, cancel_request):
+        self.get_logger().info('Action cancellation requested.')
+        return CancelResponse.ACCEPT
         
-    def process_task(self, task, text_input, image_msg):
+    def action_execute_callback(self, goal_handle):
+        self.get_logger().info(f"Executing action goal: {goal_handle.request.task}")
+        
+        target_image_msg = goal_handle.request.image if hasattr(goal_handle.request.image, 'data') and goal_handle.request.image.data else self.latest_image
+        
+        result = ExecuteTaskAction.Result()
+        
+        if target_image_msg is None:
+            self.get_logger().error("No image available for processing.")
+            goal_handle.abort()
+            result.task_prompt = goal_handle.request.task
+            result.text_output = "Error: No image available."
+            result.parsed_json = "{}"
+            return result
+            
+        text_output, parsed_answer = self.process_task(goal_handle.request.task, goal_handle.request.text_input, target_image_msg, goal_handle)
+        
+        if goal_handle.is_cancel_requested:
+            goal_handle.canceled()
+            self.get_logger().info('Goal canceled successfully.')
+            return result
+            
+        goal_handle.succeed()
+        result.task_prompt = goal_handle.request.task
+        result.text_output = text_output
+        result.parsed_json = json.dumps(parsed_answer)
+        return result
+        
+    def process_task(self, task, text_input, image_msg, goal_handle=None):
+        # Publish feedback if action
+        def send_feedback(status_msg):
+            if goal_handle is not None and not goal_handle.is_cancel_requested:
+                feedback_msg = ExecuteTaskAction.Feedback()
+                feedback_msg.status = status_msg
+                goal_handle.publish_feedback(feedback_msg)
+                
+        send_feedback("Converting image to PIL format...")
         # Convert ROS image to PIL Image
         try:
             cv_image = self.bridge.imgmsg_to_cv2(image_msg, desired_encoding='bgr8')
@@ -113,9 +171,15 @@ class Florence2Node(Node):
         if text_input:
             prompt += text_input
             
+        if goal_handle and goal_handle.is_cancel_requested:
+            return "Canceled", {}
+            
         # Run inference
+        send_feedback("Tokenising inputs for model...")
         inputs = self.processor(text=prompt, images=pil_image, return_tensors="pt").to(self.device, self.torch_dtype)
         
+        send_feedback("Generating network output (this may take a while)...")
+        # NOTE: model.generate is a blocking CUDA call
         generated_ids = self.model.generate(
             input_ids=inputs["input_ids"],
             pixel_values=inputs["pixel_values"],
@@ -123,9 +187,14 @@ class Florence2Node(Node):
             num_beams=3
         )
         
+        if goal_handle and goal_handle.is_cancel_requested:
+            return "Canceled before decoding", {}
+            
+        send_feedback("Decoding outputs...")
         generated_text = self.processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
         parsed_answer = self.processor.post_process_generation(generated_text, task=task, image_size=(pil_image.width, pil_image.height))
         
+        send_feedback("Publishing ROS bindings...")
         self.publish_results(task, parsed_answer, pil_image, image_msg.header)
         
         return generated_text, parsed_answer
@@ -203,8 +272,13 @@ class Florence2Node(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = Florence2Node()
+    
+    # Needs MultiThreadedExecutor to process callbacks (like cancel requests) while blocked in model.generate
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
+    
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
