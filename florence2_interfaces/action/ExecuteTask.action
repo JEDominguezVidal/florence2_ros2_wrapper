@@ -1,0 +1,12 @@
+# Goal
+string task
+string text_input
+sensor_msgs/Image image
+---
+# Result
+string task_prompt
+string text_output
+string parsed_json
+---
+# Feedback
+string status
