@@ -1,0 +1,33 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+env/
+venv/
+.env/
+.venv/
+virtual-environments/
+
+# Python packaging
+*.egg-info/
+*.egg
+dist/
+
+# ROS2 / Colcon build artifacts
+build/
+install/
+log/
+*.log
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
