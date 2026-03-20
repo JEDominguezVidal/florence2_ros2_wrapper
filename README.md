@@ -49,25 +49,35 @@ colcon build --packages-select florence2_interfaces florence2_ros2 --symlink-ins
 
 ## Running with Docker
 
-We provide a fully configured `Dockerfile`, a FastDDS UDP profile, and a `docker-compose.yml` file to run the Florence-2 package without managing manual installations of Python, ROS2, or CUDA. The image is based on `nvidia/cuda:12.6.3-devel-ubuntu24.04` and integrates directly with the host's NVIDIA GPU and ROS2 network space.
+We provide two Docker profiles so you can choose the best trade-off between image size and self-containment. **Both require the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)** installed on your host.
 
-> [!NOTE]
-> Ensure you have the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) installed on your host system to enable GPU support within Docker.
+### Option A — Lightweight (Default, recommended)
 
-### 1. Build and Run the Container
+Uses the official `ros:jazzy-ros-base` image. PyTorch bundles its own CUDA runtime libraries, so no system-level CUDA toolkit is needed inside the container. This produces a **significantly smaller image (~8–10 GB)**.
 
-From the root of this repository, simply run:
+**Host requirements:** NVIDIA GPU driver (≥ 530) + NVIDIA Container Toolkit.
+
 ```bash
 docker compose up --build
 ```
-This command will build the Docker image (downloading dependencies and compiling the workspace) and then launch the `florence2_node` using the host network and your GPU.
 
-> **Hugging Face Cache:** The `docker-compose.yml` file defaults to mapping your host's `~/.cache/huggingface` to the container so you do not need to re-download the model weights every time the container starts.
+### Option B — Self-contained CUDA
 
-### 2. Overriding the Default Command
+Uses `nvidia/cuda:12.6.3-runtime-ubuntu24.04` as the base. This variant ships CUDA system libraries inside the container for maximum compatibility, at the cost of a larger image (~12–14 GB).
+
+**Host requirements:** NVIDIA GPU driver (≥ 530) + NVIDIA Container Toolkit.
+
+```bash
+docker compose -f docker-compose.cuda.yml up --build
+```
+
+> [!NOTE]
+> **Hugging Face Cache:** Both `docker-compose` files default to mapping your host's `~/.cache/huggingface` to the container so you do not need to re-download the model weights every time the container starts.
+
+### Overriding the Default Command
 
 By default, the container will run `ros2 launch florence2_ros2 florence2_launch.py`.
-To run the node with specific parameters (like setting a continuous task or running in service mode), you can modify the `command` field in `docker-compose.yml`, or pass the command inline:
+To run the node with specific parameters (like setting a continuous task or running in service mode), you can modify the `command` field in the corresponding `docker-compose` file, or pass the command inline:
 
 ```bash
 docker compose run --rm florence2_node ros2 launch florence2_ros2 florence2_launch.py continuous_task:="<OD>" image_topic:=/camera/image_raw
