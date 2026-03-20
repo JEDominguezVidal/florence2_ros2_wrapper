@@ -1,19 +1,23 @@
 # ==============================================================================
-# Lightweight Dockerfile for Florence-2 ROS2 Wrapper
+# Self-contained Dockerfile for Florence-2 ROS2 Wrapper (with CUDA libraries)
 # ==============================================================================
-# Uses the official ROS2 Jazzy base image (Ubuntu 24.04, ~700 MB).
-# PyTorch bundles its own CUDA runtime libraries, so no system-level CUDA
-# toolkit is required. The NVIDIA Container Toolkit injects the host GPU
-# driver at container runtime.
+# Uses the NVIDIA CUDA runtime image on Ubuntu 24.04. This image includes the
+# CUDA shared libraries at the system level, providing an extra layer of
+# compatibility for environments where driver/library matching might be strict.
+#
+# NOTE: The 'runtime' variant is used instead of 'devel' because this project
+# does NOT compile any CUDA code (nvcc is not needed). PyTorch bundles its own
+# CUDA runtime, so even 'runtime' is redundant for most setups — but it is
+# provided here for maximum compatibility and peace of mind.
 #
 # Requirements on the host:
 #   - NVIDIA GPU driver (>= 530 for CUDA 12.x compatibility)
 #   - NVIDIA Container Toolkit (nvidia-container-toolkit)
 #
-# If you prefer a fully self-contained image that ships CUDA libraries inside
-# the container, use Dockerfile.cuda instead.
+# For a lighter image that skips the CUDA system libraries entirely, use the
+# default Dockerfile instead.
 # ==============================================================================
-FROM ros:jazzy-ros-base
+FROM nvidia/cuda:12.6.3-runtime-ubuntu24.04
 
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -22,24 +26,35 @@ ENV TZ=Etc/UTC
 # Set up locale
 RUN apt-get update && apt-get install -y locales \
     && locale-gen en_GB en_GB.UTF-8 \
-    && update-locale LC_ALL=en_GB.UTF-8 LANG=en_GB.UTF-8 \
-    && rm -rf /var/lib/apt/lists/*
+    && update-locale LC_ALL=en_GB.UTF-8 LANG=en_GB.UTF-8
 ENV LANG=en_GB.UTF-8
 
-# Install system utilities needed for building Python packages and ROS2 deps
+# Install general utilities
 RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg2 \
+    lsb-release \
+    software-properties-common \
     python3-pip \
     python3-venv \
     git \
     build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add ROS2 Jazzy repository
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+# Install ROS2 Jazzy and essential tools
+RUN apt-get update && apt-get install -y \
+    ros-jazzy-ros-base \
     ros-jazzy-vision-msgs \
     python3-colcon-common-extensions \
     python3-rosdep \
     && rm -rf /var/lib/apt/lists/*
 
-# Initialise rosdep (skip if already initialised by the base image)
-RUN if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then rosdep init; fi \
-    && rosdep update
+# Initialise rosdep
+RUN rosdep init && rosdep update
 
 # Create ROS2 workspace
 WORKDIR /ros2_ws

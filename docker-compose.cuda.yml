@@ -1,16 +1,16 @@
 # ==============================================================================
-# Lightweight profile (default)
-# Uses ros:jazzy-ros-base. PyTorch bundles its own CUDA runtime.
+# Self-contained CUDA profile
+# Uses nvidia/cuda:12.6.3-runtime-ubuntu24.04 for maximum CUDA compatibility.
 # Requires: NVIDIA GPU driver + NVIDIA Container Toolkit on the host.
-# For the self-contained CUDA variant, use: docker compose -f docker-compose.cuda.yml up --build
+# For the lightweight variant, use: docker compose up --build
 # ==============================================================================
 services:
   florence2_node:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: florence2_ros2_wrapper:latest
-    container_name: florence2_ros2_container
+      dockerfile: Dockerfile.cuda
+    image: florence2_ros2_wrapper:cuda
+    container_name: florence2_ros2_cuda_container
     network_mode: "host"
     ipc: host
     pid: host
@@ -37,11 +37,7 @@ services:
       # ROS2 Jazzy networking requires these variables to match the host for proper discovery
       - ROS_AUTOMATIC_DISCOVERY_RANGE=${ROS_AUTOMATIC_DISCOVERY_RANGE:-SUBNET}
       - ROS_LOCALHOST_ONLY=${ROS_LOCALHOST_ONLY:-0}
-      # FastDDS Shared Memory breaks across Docker boundaries even with IPC host. Force UDP via RMW configuration or FastDDS profiles if needed.
-      # The safest approach across Docker is to explicitly configure FastDDS to not use SHM if problems persist, but usually defining ROS_DOMAIN_ID is enough.
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
       - FASTRTPS_DEFAULT_PROFILES_FILE=/fastdds_no_shm.xml
     # Provide the default command to launch the ros2 node
-    # Replace the command below to launch specific options, e.g. service mode
-    # command: ros2 launch florence2_ros2 florence2_launch.py continuous_task:="<OD>" image_topic:=/camera/image_raw
     command: ros2 launch florence2_ros2 florence2_launch.py
