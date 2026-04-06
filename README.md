@@ -18,6 +18,7 @@ A robust ROS2 Jazzy wrapper for the Florence-2 baseline and large foundational m
 - [Running Locally (Without Docker)](#-running-locally-without-docker)
 - [ROS2 Interface](#-ros2-interface)
 - [Examples](#-examples)
+- [Citation](#-citation)
 - [Licence](#-licence)
 
 ## 🧪 Tested On
@@ -222,6 +223,19 @@ This node demonstrates the exact same workflow but utilizing the Action Server. 
 2. In terminal 2, launch the action example node:
 ```bash
 ros2 run florence2_ros2 florence2_action_example --ros-args -p image_topic:=/camera/image_raw
+```
+
+## 📚 Citation
+
+If you find this wrapper useful in your research, project, or overall work, please consider citing our accompanying arXiv article:
+
+```bibtex
+@article{dominguez2026ros,
+  title={A ROS 2 Wrapper for Florence-2: Multi-Mode Local Vision-Language Inference for Robotic Systems},
+  author={Dom{\'\i}nguez-Vidal, J. E.},
+  journal={arXiv preprint arXiv:2604.01179},
+  year={2026}
+}
 ```
 
 ## 📄 Licence
